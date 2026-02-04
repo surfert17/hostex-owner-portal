@@ -17,7 +17,7 @@ app.get('/', (req, res) => {
 });
 
 // Real Hostex reservations endpoint
-app.get('/owner/:ownerId/reservations', async (req, res) => {
+app.get('/reservations', async (req, res) => {
   const ownerId = req.params.ownerId;
 
   try {
