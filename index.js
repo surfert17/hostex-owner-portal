@@ -6,53 +6,27 @@ app.use(express.json());
 
 const HOSTEX_API_TOKEN = process.env.HOSTEX_API_TOKEN;
 
-// Safety check
-if (!HOSTEX_API_TOKEN) {
-  console.error('❌ Missing HOSTEX_API_TOKEN');
-}
-
 // Health check
 app.get('/', (req, res) => {
   res.send('Hostex Owner Portal Backend Running');
 });
 
-// Real Hostex reservations endpoint
+// Get ALL upcoming reservations
 app.get('/reservations', async (req, res) => {
-  const ownerId = req.params.ownerId;
-
   try {
-    // Step 1: Get properties for owner
-    const propertiesRes = await axios.get(
-      'https://api.hostex.io/properties',
-      {
-        headers: {
-          Authorization: `Bearer ${HOSTEX_API_TOKEN}`
-        },
-        params: { ownerId }
-      }
-    );
-
-    const propertyIds = propertiesRes.data.map(p => p.id);
-
-    if (!propertyIds.length) {
-      return res.json({ reservations: [] });
-    }
-
-    // Step 2: Get reservations
-    const reservationsRes = await axios.get(
+    const response = await axios.get(
       'https://api.hostex.io/reservations',
       {
         headers: {
           Authorization: `Bearer ${HOSTEX_API_TOKEN}`
         },
         params: {
-          propertyIds: propertyIds.join(','),
           startDate: new Date().toISOString()
         }
       }
     );
 
-    const reservations = reservationsRes.data.map(r => ({
+    const reservations = response.data.map(r => ({
       guestName: r.guest?.name || 'Guest',
       checkIn: r.checkIn,
       checkOut: r.checkOut,
