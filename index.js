@@ -11,30 +11,15 @@ app.get('/', (req, res) => {
   res.send('Hostex Owner Portal Backend Running');
 });
 
-// List all reservations (past + future)
+// Fetch all reservations your token can access (no filters)
 app.get('/reservations', async (req, res) => {
   try {
-    // Wide date range: 2020-01-01 to 10 years in future
-    const startDate = '2020-01-01';
-    const futureDate = new Date();
-    futureDate.setFullYear(futureDate.getFullYear() + 10);
-    const endDate = futureDate.toISOString().split('T')[0];
-
-    const params = {
-      StartCheckInDate: startDate,
-      EndCheckInDate: endDate,
-      Status: 'accepted', // can also include other statuses if needed
-      Limit: 100,
-      Offset: 0
-    };
-
     const response = await axios.get(
-      'https://api.hostex.io/v3/reservations',
+      'https://api.hostex.io/v3/reservations', // correct endpoint
       {
         headers: {
           'Hostex-Access-Token': HOSTEX_API_TOKEN
-        },
-        params
+        }
       }
     );
 
@@ -43,13 +28,14 @@ app.get('/reservations', async (req, res) => {
     // Safely locate reservations array
     const list = raw?.reservations || [];
 
-    // Normalize for frontend
+    // Normalize the output
     const reservations = list.map(r => ({
       reservationCode: r.reservation_code || r.ReservationCode,
       guestName: r.guest_name || r.GuestName || r.guest?.name || 'Guest',
       checkIn: r.check_in_date || r.CheckInDate,
       checkOut: r.check_out_date || r.CheckOutDate,
-      channel: r.channel_type || r.ChannelType || 'Unknown'
+      channel: r.channel_type || r.ChannelType || 'Unknown',
+      propertyId: r.property_id || r.PropertyId || null
     }));
 
     res.json({ reservations });
