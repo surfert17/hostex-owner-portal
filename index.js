@@ -4,6 +4,7 @@ const axios = require('axios');
 const app = express();
 app.use(express.json());
 
+// Use env var, but allow boot without it for now
 const HOSTEX_API_TOKEN = process.env.HOSTEX_API_TOKEN || 'TEMP';
 
 // Health check
@@ -11,7 +12,7 @@ app.get('/', (req, res) => {
   res.send('Hostex Owner Portal Backend Running');
 });
 
-// Get all upcoming reservations (Hostex connection comes later)
+// Get all upcoming reservations (no owner filtering yet)
 app.get('/reservations', async (req, res) => {
   try {
     const response = await axios.get(
@@ -26,11 +27,25 @@ app.get('/reservations', async (req, res) => {
       }
     );
 
-    const reservations = (response.data || []).map(r => ({
-      guestName: r.guest?.name || 'Guest',
-      checkIn: r.checkIn,
-      checkOut: r.checkOut,
-      channel: r.channelName
+    const rawData = response.data;
+
+    // Log raw response to Render logs (for debugging)
+    console.log('--- HOSTEX RAW RESPONSE START ---');
+    console.log(JSON.stringify(rawData, null, 2));
+    console.log('--- HOSTEX RAW RESPONSE END ---');
+
+    // Safely locate reservations array
+    const list =
+      rawData?.data ||
+      rawData?.reservations ||
+      rawData?.items ||
+      [];
+
+    const reservations = list.map(r => ({
+      guestName: r.guest?.name || r.guestName || 'Guest',
+      checkIn: r.checkIn || r.startDate,
+      checkOut: r.checkOut || r.endDate,
+      channel: r.channelName || r.channel || 'Unknown'
     }));
 
     res.json({ reservations });
