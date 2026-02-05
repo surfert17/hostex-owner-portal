@@ -6,21 +6,24 @@ app.use(express.json());
 
 const HOSTEX_API_TOKEN = process.env.HOSTEX_API_TOKEN;
 
-// Simple health check
+// Health check
 app.get('/', (req, res) => {
   res.send('Hostex Owner Portal Backend Running');
 });
 
-// List reservations with basic filters
+// List all reservations (past + future)
 app.get('/reservations', async (req, res) => {
   try {
-    // Use today's date as a starting check-in filter
-    const today = new Date().toISOString().split('T')[0];
+    // Wide date range: 2020-01-01 to 10 years in future
+    const startDate = '2020-01-01';
+    const futureDate = new Date();
+    futureDate.setFullYear(futureDate.getFullYear() + 10);
+    const endDate = futureDate.toISOString().split('T')[0];
 
-    // Build query params
     const params = {
-      StartCheckInDate: today,
-      Status: 'accepted',
+      StartCheckInDate: startDate,
+      EndCheckInDate: endDate,
+      Status: 'accepted', // can also include other statuses if needed
       Limit: 100,
       Offset: 0
     };
@@ -35,19 +38,18 @@ app.get('/reservations', async (req, res) => {
       }
     );
 
-    // The expected structure based on docs
     const raw = response.data;
 
-    // If there's a 'reservations' array, use it
+    // Safely locate reservations array
     const list = raw?.reservations || [];
 
-    // Normalize it
+    // Normalize for frontend
     const reservations = list.map(r => ({
-      reservationCode: r.reservation_code,
-      guestName: r.guest_name,
-      checkIn: r.check_in_date,
-      checkOut: r.check_out_date,
-      channel: r.channel_type
+      reservationCode: r.reservation_code || r.ReservationCode,
+      guestName: r.guest_name || r.GuestName || r.guest?.name || 'Guest',
+      checkIn: r.check_in_date || r.CheckInDate,
+      checkOut: r.check_out_date || r.CheckOutDate,
+      channel: r.channel_type || r.ChannelType || 'Unknown'
     }));
 
     res.json({ reservations });
