@@ -6,46 +6,52 @@ app.use(express.json());
 
 const HOSTEX_API_TOKEN = process.env.HOSTEX_API_TOKEN;
 
-// Health check
+// Simple health check
 app.get('/', (req, res) => {
   res.send('Hostex Owner Portal Backend Running');
 });
 
-// Get all upcoming reservations
+// List reservations with basic filters
 app.get('/reservations', async (req, res) => {
   try {
+    // Use today's date as a starting check-in filter
     const today = new Date().toISOString().split('T')[0];
 
+    // Build query params
+    const params = {
+      StartCheckInDate: today,
+      Status: 'accepted',
+      Limit: 100,
+      Offset: 0
+    };
+
     const response = await axios.get(
-      'https://api.hostex.io/reservations',
+      'https://api.hostex.io/v3/reservations',
       {
         headers: {
           'Hostex-Access-Token': HOSTEX_API_TOKEN
         },
-        params: {
-          StartCheckInDate: today
-        }
+        params
       }
     );
 
-    const rawData = response.data;
+    // The expected structure based on docs
+    const raw = response.data;
 
-    // Try to find reservations array in response
-    const list =
-      rawData?.reservations ||
-      rawData?.data?.reservations ||
-      rawData?.data ||
-      [];
+    // If there's a 'reservations' array, use it
+    const list = raw?.reservations || [];
 
+    // Normalize it
     const reservations = list.map(r => ({
-      reservationCode: r.reservation_code || r.ReservationCode,
-      guestName: r.guest_name || r.GuestName || r.guest?.name,
-      checkIn: r.check_in_date || r.CheckInDate,
-      checkOut: r.check_out_date || r.CheckOutDate,
-      channel: r.channel_type || r.ChannelType
+      reservationCode: r.reservation_code,
+      guestName: r.guest_name,
+      checkIn: r.check_in_date,
+      checkOut: r.check_out_date,
+      channel: r.channel_type
     }));
 
     res.json({ reservations });
+
   } catch (err) {
     console.error('Hostex API error:', err.response?.data || err.message);
     res.status(err.response?.status || 500).json({
@@ -56,6 +62,4 @@ app.get('/reservations', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
