@@ -36,10 +36,13 @@ app.get('/reservations', async (req, res) => {
     res.json({ reservations });
 
   } catch (err) {
-    console.error('Hostex API error:', err.response?.data || err.message);
-    res.status(500).json({ error: 'Failed to fetch Hostex reservations' });
-  }
-});
+  console.error('Hostex API error:', err.response?.data || err.message);
+
+  res.status(err.response?.status || 500).json({
+    message: 'Hostex API error',
+    details: err.response?.data || err.message
+  });
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
