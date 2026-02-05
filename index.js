@@ -4,7 +4,7 @@ const axios = require('axios');
 const app = express();
 app.use(express.json());
 
-// Use env var, but allow boot without it for now
+// Allow boot even if env var is missing (for now)
 const HOSTEX_API_TOKEN = process.env.HOSTEX_API_TOKEN || 'TEMP';
 
 // Health check
@@ -12,55 +12,32 @@ app.get('/', (req, res) => {
   res.send('Hostex Owner Portal Backend Running');
 });
 
-// Get all upcoming reservations (no owner filtering yet)
-app.get('/reservations', async (req, res) => {
+// TEST Hostex open_api base
+app.get('/test', async (req, res) => {
   try {
     const response = await axios.get(
-      'https://api.hostex.io/reservations',
+      'https://api.hostex.io/open_api',
       {
         headers: {
           Authorization: `Bearer ${HOSTEX_API_TOKEN}`
-        },
-        params: {
-          startDate: new Date().toISOString()
         }
       }
     );
 
-    const rawData = response.data;
-
-    // Log raw response to Render logs (for debugging)
-    console.log('--- HOSTEX RAW RESPONSE START ---');
-    console.log(JSON.stringify(rawData, null, 2));
-    console.log('--- HOSTEX RAW RESPONSE END ---');
-
-    // Safely locate reservations array
-    const list =
-      rawData?.data ||
-      rawData?.reservations ||
-      rawData?.items ||
-      [];
-
-    const reservations = list.map(r => ({
-      guestName: r.guest?.name || r.guestName || 'Guest',
-      checkIn: r.checkIn || r.startDate,
-      checkOut: r.checkOut || r.endDate,
-      channel: r.channelName || r.channel || 'Unknown'
-    }));
-
-    res.json({ reservations });
+    res.json({
+      success: true,
+      data: response.data
+    });
 
   } catch (err) {
-    console.error('Hostex API error:', err.response?.data || err.message);
+    console.error('Hostex TEST error:', err.response?.data || err.message);
 
     res.status(err.response?.status || 500).json({
-      message: 'Hostex API error',
+      success: false,
       details: err.response?.data || err.message
     });
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT,
