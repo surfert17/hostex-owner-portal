@@ -51,17 +51,20 @@ app.get('/reservations', async (req, res) => {
     }
 
     // Normalize reservations for frontend
-    const normalized = reservations.map(r => ({
-      reservationCode: r.reservation_code,
-      stayCode: r.stay_code,
-      guestName: r.guest_name,
-      checkIn: r.check_in_date,
-      checkOut: r.check_out_date,
-      status: r.status,
-      channel: r.channel_type,
-      propertyId: r.property_id,
-      amount: r.rates?.total || null // payout amount if available
-    }));
+    const todayDate = new Date();
+    const normalized = reservations
+      .filter(r => new Date(r.check_in_date) >= todayDate) // upcoming only
+      .map(r => ({
+        reservationCode: r.reservation_code,
+        stayCode: r.stay_code,
+        guestName: r.guest_name,
+        checkIn: r.check_in_date,
+        checkOut: r.check_out_date,
+        status: r.status,
+        channel: r.channel_type,
+        propertyId: r.property_id,
+        amount: r.rates?.total_rate?.rate?.commission || null
+      }));
 
     res.json({ reservations: normalized });
   } catch (err) {
