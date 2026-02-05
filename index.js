@@ -1,60 +1,42 @@
+// index.js
 const express = require('express');
 const axios = require('axios');
-
 const app = express();
-app.use(express.json());
+const PORT = process.env.PORT || 3000;
 
-const HOSTEX_API_TOKEN = process.env.HOSTEX_API_TOKEN;
+// Use your Hostex API Key
+const HOSTEX_API_KEY = process.env.HOSTEX_API_KEY;
 
-// Health check
-app.get('/', (req, res) => {
-  res.send('Hostex Owner Portal Backend Running');
-});
-
-// Fetch upcoming reservations for owner portal
-app.get('/reservations', async (req, res) => {
+// Helper to fetch reservations
+async function fetchReservations() {
   try {
-    const reservations = [];
-    const limit = 100;
-    let offset = 0;
+    const response = await axios.get('https://api.hostex.io/v3/reservations', {
+      headers: {
+        'Authorization': `Bearer ${HOSTEX_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      params: {
+        limit: 100, // adjust as needed
+        offset: 0
+      }
+    });
 
-    const today = new Date().toISOString().split('T')[0]; // today YYYY-MM-DD
-    const endCheckIn = req.query.end_check_in_date || new Date(new Date().setFullYear(new Date().getFullYear() + 10))
-      .toISOString()
-      .split('T')[0];
-    const status = req.query.status; // optional filter
-    const propertyId = req.query.property_id; // optional
+    const reservations = (response.data.data?.reservations || []).map(r => {
+      // Extract payout breakdown
+      const amountBreakdown = {};
+      if (r.rates?.total_rate?.rate?.commission?.details) {
+        r.rates.total_rate.rate.commission.details.forEach(d => {
+          amountBreakdown[d.type] = d.amount;
+        });
+      }
 
-    while (true) {
-      const params = {
-        StartCheckInDate: today, // only upcoming
-        EndCheckInDate: endCheckIn,
-        Limit: limit,
-        Offset: offset
-      };
+      // Sum all amounts for total payout
+      const totalAmount = Object.values(amountBreakdown).reduce(
+        (sum, val) => sum + (val || 0),
+        0
+      );
 
-      if (status) params.Status = status;
-      if (propertyId) params.PropertyId = propertyId;
-
-      const response = await axios.get('https://api.hostex.io/v3/reservations', {
-        headers: { 'Hostex-Access-Token': HOSTEX_API_TOKEN },
-        params
-      });
-
-      const list = response.data?.data?.reservations || [];
-      if (list.length === 0) break;
-
-      reservations.push(...list);
-      offset += list.length;
-
-      if (list.length < limit) break;
-    }
-
-    // Normalize reservations for frontend
-    const todayDate = new Date();
-    const normalized = reservations
-      .filter(r => new Date(r.check_in_date) >= todayDate) // upcoming only
-      .map(r => ({
+      return {
         reservationCode: r.reservation_code,
         stayCode: r.stay_code,
         guestName: r.guest_name,
@@ -63,18 +45,25 @@ app.get('/reservations', async (req, res) => {
         status: r.status,
         channel: r.channel_type,
         propertyId: r.property_id,
-        amount: r.rates?.total_rate?.rate?.commission || null
-      }));
+        amountBreakdown,
+        totalAmount
+      };
+    });
 
-    res.json({ reservations: normalized });
+    return reservations;
   } catch (err) {
     console.error('Hostex API error:', err.response?.data || err.message);
-    res.status(err.response?.status || 500).json({
-      message: 'Hostex API error',
-      details: err.response?.data || err.message
-    });
+    return [];
   }
+}
+
+// Endpoint to return reservations
+app.get('/reservations', async (req, res) => {
+  const reservations = await fetchReservations();
+  res.json({ reservations });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Start server
+app.listen(PORT, () => {
+  console.log(`Hostex Owner Portal Backend Running on port ${PORT}`);
+});
