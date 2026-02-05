@@ -4,66 +4,47 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Use your Hostex API Key
-const HOSTEX_API_KEY = process.env.HOSTEX_API_KEY;
+// Replace with your real Hostex API token
+const HOSTEX_API_TOKEN = process.env.HOSTEX_API_TOKEN || 'YOUR_HOSTEX_API_TOKEN';
 
-// Helper to fetch reservations
-async function fetchReservations() {
+app.get('/reservations', async (req, res) => {
   try {
+    // Query Hostex API for all reservations (past + future)
     const response = await axios.get('https://api.hostex.io/v3/reservations', {
       headers: {
-        'Authorization': `Bearer ${HOSTEX_API_KEY}`,
-        'Content-Type': 'application/json'
+        'Hostex-Access-Token': HOSTEX_API_TOKEN
       },
       params: {
-        limit: 100, // adjust as needed
+        start_check_in_date: '2000-01-01', // far past to include all reservations
+        end_check_out_date: '2100-12-31', // far future
+        limit: 100, // max results per page
         offset: 0
       }
     });
 
-    const reservations = (response.data.data?.reservations || []).map(r => {
-      // Extract payout breakdown
-      const amountBreakdown = {};
-      if (r.rates?.total_rate?.rate?.commission?.details) {
-        r.rates.total_rate.rate.commission.details.forEach(d => {
-          amountBreakdown[d.type] = d.amount;
-        });
-      }
+    const reservations = (response.data.data?.reservations || []).map(r => ({
+      reservationCode: r.reservation_code,
+      stayCode: r.stay_code,
+      guestName: r.guest_name,
+      checkIn: r.check_in_date,
+      checkOut: r.check_out_date,
+      status: r.status,
+      channel: r.channel_type,
+      propertyId: r.property_id,
+      amount: r.rates?.total_rate?.total_commission?.rate?.commission || null
+    }));
 
-      // Sum all amounts for total payout
-      const totalAmount = Object.values(amountBreakdown).reduce(
-        (sum, val) => sum + (val || 0),
-        0
-      );
-
-      return {
-        reservationCode: r.reservation_code,
-        stayCode: r.stay_code,
-        guestName: r.guest_name,
-        checkIn: r.check_in_date,
-        checkOut: r.check_out_date,
-        status: r.status,
-        channel: r.channel_type,
-        propertyId: r.property_id,
-        amountBreakdown,
-        totalAmount
-      };
+    res.json({ reservations });
+  } catch (error) {
+    console.error('Hostex API error:', error.response?.data || error.message);
+    res.status(500).json({
+      message: 'Hostex API error',
+      details: error.response?.data || error.message
     });
-
-    return reservations;
-  } catch (err) {
-    console.error('Hostex API error:', err.response?.data || err.message);
-    return [];
   }
-}
-
-// Endpoint to return reservations
-app.get('/reservations', async (req, res) => {
-  const reservations = await fetchReservations();
-  res.json({ reservations });
 });
 
-// Start server
 app.listen(PORT, () => {
   console.log(`Hostex Owner Portal Backend Running on port ${PORT}`);
 });
+
