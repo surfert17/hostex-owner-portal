@@ -11,24 +11,23 @@ app.get('/', (req, res) => {
   res.send('Hostex Owner Portal Backend Running');
 });
 
-// Fetch reservations with optional filters
+// Fetch upcoming reservations for owner portal
 app.get('/reservations', async (req, res) => {
   try {
     const reservations = [];
     const limit = 100;
     let offset = 0;
 
-    // Defaults: wide date range
-    const startCheckIn = req.query.start_check_in_date || '2020-01-01';
+    const today = new Date().toISOString().split('T')[0]; // today YYYY-MM-DD
     const endCheckIn = req.query.end_check_in_date || new Date(new Date().setFullYear(new Date().getFullYear() + 10))
       .toISOString()
       .split('T')[0];
-    const status = req.query.status; // optional
+    const status = req.query.status; // optional filter
     const propertyId = req.query.property_id; // optional
 
     while (true) {
       const params = {
-        StartCheckInDate: startCheckIn,
+        StartCheckInDate: today, // only upcoming
         EndCheckInDate: endCheckIn,
         Limit: limit,
         Offset: offset
@@ -51,7 +50,7 @@ app.get('/reservations', async (req, res) => {
       if (list.length < limit) break;
     }
 
-    // Normalize reservations
+    // Normalize reservations for frontend
     const normalized = reservations.map(r => ({
       reservationCode: r.reservation_code,
       stayCode: r.stay_code,
@@ -60,7 +59,8 @@ app.get('/reservations', async (req, res) => {
       checkOut: r.check_out_date,
       status: r.status,
       channel: r.channel_type,
-      propertyId: r.property_id
+      propertyId: r.property_id,
+      amount: r.rates?.total || null // payout amount if available
     }));
 
     res.json({ reservations: normalized });
